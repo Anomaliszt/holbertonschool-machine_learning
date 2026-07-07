@@ -1,86 +1,47 @@
 #!/usr/bin/env python3
-
 import numpy as np
 
-
 def conv_forward(A_prev, W, b, activation, padding="same", stride=(1, 1)):
-    """
-    Performs forward propagation over a convolutional layer.
-
-    Args:
-        A_prev: numpy.ndarray of shape (m, h_prev, w_prev, c_prev)
-        W: numpy.ndarray of shape (kh, kw, c_prev, c_new)
-        b: numpy.ndarray of shape (1, 1, 1, c_new)
-        activation: activation function
-        padding: "same" or "valid"
-        stride: tuple (sh, sw)
-
-    Returns:
-        The output of the convolutional layer
-    """
-
+    """Performs forward propagation over a convolutional layer of a neural network."""
     m, h_prev, w_prev, c_prev = A_prev.shape
     kh, kw, _, c_new = W.shape
     sh, sw = stride
 
-    # Calculate output size and padding
     if padding == "same":
+        # Calculate output dimensions
         h_new = int(np.ceil(h_prev / sh))
         w_new = int(np.ceil(w_prev / sw))
-
-        pad_h = max((h_new - 1) * sh + kh - h_prev, 0)
-        pad_w = max((w_new - 1) * sw + kw - w_prev, 0)
-
-        pad_top = pad_h // 2
-        pad_bottom = pad_h - pad_top
-        pad_left = pad_w // 2
-        pad_right = pad_w - pad_left
-
+        # Calculate padding
+        ph_total = (h_new - 1) * sh + kh - h_prev
+        pw_total = (w_new - 1) * sw + kw - w_prev
+        ph = ph_total // 2
+        pw = pw_total // 2
+        # Pad more on the end if odd
+        pad_top = ph
+        pad_bottom = ph_total - ph
+        pad_left = pw
+        pad_right = pw_total - pw
+        A_prev_padded = np.pad(A_prev, ((0, 0), (pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='constant')
     elif padding == "valid":
-        h_new = int((h_prev - kh) / sh) + 1
-        w_new = int((w_prev - kw) / sw) + 1
-
-        pad_top = 0
-        pad_bottom = 0
-        pad_left = 0
-        pad_right = 0
-
+        ph = pw = 0
+        h_new = (h_prev - kh) // sh + 1
+        w_new = (w_prev - kw) // sw + 1
+        A_prev_padded = A_prev
     else:
         raise ValueError("padding must be 'same' or 'valid'")
 
-    # Apply padding
-    A_pad = np.pad(
-        A_prev,
-        ((0, 0),
-         (pad_top, pad_bottom),
-         (pad_left, pad_right),
-         (0, 0)),
-        mode="constant"
-    )
-
-    # Initialize output
     Z = np.zeros((m, h_new, w_new, c_new))
 
-    # Convolution
-    for i in range(h_new):
-        for j in range(w_new):
+    for i in range(m):
+        for h in range(h_new):
+            for w in range(w_new):
+                for c in range(c_new):
+                    vert_start = h * sh
+                    vert_end = vert_start + kh
+                    horiz_start = w * sw
+                    horiz_end = horiz_start + kw
+                    a_slice = A_prev_padded[i, vert_start:vert_end, horiz_start:horiz_end, :]
+                    Z[i, h, w, c] = np.sum(a_slice * W[:, :, :, c]) + b[0, 0, 0, c]
 
-            h_start = i * sh
-            h_end = h_start + kh
-
-            w_start = j * sw
-            w_end = w_start + kw
-
-            window = A_pad[:, h_start:h_end, w_start:w_end, :]
-
-            for c in range(c_new):
-                Z[:, i, j, c] = (
-                    np.sum(window * W[:, :, :, c], axis=(1, 2, 3))
-                    / (kh * kw * c_prev)
-                    + b[0, 0, 0, c]
-                )
-
-    # Apply activation
     A = activation(Z)
-
     return A

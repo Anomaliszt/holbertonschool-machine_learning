@@ -7,41 +7,32 @@ def conv_forward(A_prev, W, b, activation, padding="same", stride=(1, 1)):
     kh, kw, _, c_new = W.shape
     sh, sw = stride
 
-    if padding == "same":
-        # Calculate output dimensions
-        h_new = int(np.ceil(h_prev / sh))
-        w_new = int(np.ceil(w_prev / sw))
-        # Calculate padding
-        ph_total = (h_new - 1) * sh + kh - h_prev
-        pw_total = (w_new - 1) * sw + kw - w_prev
-        ph = ph_total // 2
-        pw = pw_total // 2
-        # Pad more on the end if odd
-        pad_top = ph
-        pad_bottom = ph_total - ph
-        pad_left = pw
-        pad_right = pw_total - pw
-        A_prev_padded = np.pad(A_prev, ((0, 0), (pad_top, pad_bottom), (pad_left, pad_right), (0, 0)), mode='constant')
-    elif padding == "valid":
-        ph = pw = 0
-        h_new = (h_prev - kh) // sh + 1
-        w_new = (w_prev - kw) // sw + 1
-        A_prev_padded = A_prev
+    if padding == 'valid':
+        ph = 0
+        pw = 0
+    elif padding == 'same':
+        ph = int(np.ceil(((sh * h_prev) - sh + kh - h_prev) / 2))
+        pw = int(np.ceil(((sw * w_prev) - sw + kw - w_prev) / 2))
     else:
         raise ValueError("padding must be 'same' or 'valid'")
 
+    A_prev_padded = np.pad(A_prev, [(0, 0), (ph, ph), (pw, pw), (0, 0)],
+                           mode='constant', constant_values=0)
+
+    h_new = int(((h_prev + 2 * ph - kh) / sh) + 1)
+    w_new = int(((w_prev + 2 * pw - kw) / sw) + 1)
+
     Z = np.zeros((m, h_new, w_new, c_new))
 
-    for i in range(m):
-        for h in range(h_new):
-            for w in range(w_new):
-                for c in range(c_new):
-                    vert_start = h * sh
-                    vert_end = vert_start + kh
-                    horiz_start = w * sw
-                    horiz_end = horiz_start + kw
-                    a_slice = A_prev_padded[i, vert_start:vert_end, horiz_start:horiz_end, :]
-                    Z[i, h, w, c] = np.sum(a_slice * W[:, :, :, c]) + b[0, 0, 0, c]
+    for i in range(h_new):
+        for j in range(w_new):
+            for f in range(c_new):
+                vert_start = i * sh
+                vert_end = vert_start + kh
+                horiz_start = j * sw
+                horiz_end = horiz_start + kw
+                a_slice = A_prev_padded[:, vert_start:vert_end, horiz_start:horiz_end, :]
+                Z[:, i, j, f] = np.sum(a_slice * W[:, :, :, f], axis=(1, 2, 3)) + b[0, 0, 0, f]
 
     A = activation(Z)
     return A

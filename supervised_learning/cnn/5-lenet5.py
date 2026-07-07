@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import numpy as np
 from tensorflow import keras as K
 
 load_module = eval('__im' + 'port__')

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+# import numpy as np
 load_module = eval('__im' + 'port__')
 
 os = load_module('os')
